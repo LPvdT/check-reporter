@@ -1,0 +1,46 @@
+name: "Check Reporter"
+description: "Report custom checks with annotations to GitHub"
+inputs:
+  name:
+    description: "Check run name"
+    required: true
+  conclusion:
+    description: "Conclusion (success, failure, neutral, cancelled, timed_out, action_required, stale)"
+    required: true
+  summary:
+    description: "Summary text for the check"
+    required: true
+  annotations:
+    description: "Annotations JSON array (default: empty)"
+    required: false
+    default: "[]"
+runs:
+  using: "composite"
+  steps:
+    - name: Start check
+      id: create
+      shell: bash
+      run: |
+        set -euo pipefail
+        ID=$(gh api \
+          repos/${GITHUB_REPOSITORY}/check-runs \
+          -F "name=${{ inputs.name }}" \
+          -F "head_sha=${GITHUB_SHA}" \
+          -F "status=in_progress" \
+          -F "output[title]=${{ inputs.name }}" \
+          -F "output[summary]=Started" \
+          --jq '.id')
+        echo "id=$ID" >> $GITHUB_OUTPUT
+
+    - name: Complete check
+      shell: bash
+      run: |
+        set -euo pipefail
+        gh api \
+          repos/${GITHUB_REPOSITORY}/check-runs/${{ steps.create.outputs.id }} \
+          -X PATCH \
+          -F "status=completed" \
+          -F "conclusion=${{ inputs.conclusion }}" \
+          -F "output[title]=${{ inputs.name }}" \
+          -F "output[summary]=${{ inputs.summary }}" \
+          -F "output[annotations]=${{ inputs.annotations }}"
